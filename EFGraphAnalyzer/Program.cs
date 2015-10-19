@@ -1,0 +1,37 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.Entity;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
+using EFGraphAnalyzer.Models;
+
+namespace EFGraphAnalyzer
+{
+    class Program
+    {
+        private static EFContext db = new EFContext();
+        static void Main(string[] args)
+        {
+
+            var s = new Student
+            {
+                Name = "NewStudent",
+                Courses = new[]
+                {
+                    new Course {Id = 1, Name = "FirstCours"}
+                }
+            };
+            db.AnalyseGraph(s);
+
+
+            db.SaveChanges();
+
+
+        }
+
+
+    }
+}
