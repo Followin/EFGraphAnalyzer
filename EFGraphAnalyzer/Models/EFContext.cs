@@ -80,10 +80,7 @@ namespace EFGraphAnalyzer.Models
                     var genericExceptMethod = exceptionMethod.MakeGenericMethod(typeof(object));
                     
                     var toListMethod = typeof (Enumerable).GetMethod("ToList");
-                    var genericToListMethod = toListMethod.MakeGenericMethod(typeof (object));
                     var idsToRemove = genericExceptMethod.Invoke(null, new object[] { existingIdsArray, newIdsArray });
-                    var idsToAdd = genericExceptMethod.Invoke(null, new object[] { newIdsArray, existingIdsArray });
-                    var idsToRemoveList = genericToListMethod.Invoke(null, new object[] {idsToRemove});
 
                     
 
