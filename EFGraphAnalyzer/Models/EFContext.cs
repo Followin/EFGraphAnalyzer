@@ -72,19 +72,23 @@ namespace EFGraphAnalyzer.Models
                     var existingIdsArray = existingIds.ToArray();
                     var newIdsArray = newIds.ToArray();
 
-                    var exceptionMethod = typeof(Enumerable)
+                    var exceptMethod = typeof(Enumerable)
+                                                         .GetMethods()
+                                                         .SingleOrDefault(x => x.Name == "Except" &&
+                                                                               x.GetParameters().Length == 2 &&
+                                                                               x.GetGenericArguments().Length == 1);
+                    var genericExceptMethod = exceptMethod.MakeGenericMethod(typeof(object));
+                    var intersectMethod = typeof(Enumerable)
                                                             .GetMethods()
-                                                            .SingleOrDefault(x => x.Name == "Except" &&
-                                                                                  x.GetParameters().Length == 2 &&
-                                                                                  x.GetGenericArguments().Length == 1);
-                    var genericExceptMethod = exceptionMethod.MakeGenericMethod(typeof(object));
+                                                            .SingleOrDefault(x => x.Name == "Intersect" &&
+                                                                               x.GetParameters().Length == 2 &&
+                                                                               x.GetGenericArguments().Length == 1);
+                    
                     
                     var toListMethod = typeof (Enumerable).GetMethod("ToList");
                     var idsToRemove = genericExceptMethod.Invoke(null, new object[] { existingIdsArray, newIdsArray });
 
                     
-
-
                 }
             }
 

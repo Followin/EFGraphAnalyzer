@@ -18,6 +18,7 @@ namespace EFGraphAnalyzer
 
             var s = new Student
             {
+                Id = 1,
                 Name = "First",
                 Courses = new[]
                 {
@@ -30,7 +31,7 @@ namespace EFGraphAnalyzer
             };
 
             db.AnalyseGraph(s);
-
+            
 
             db.SaveChanges();
 
