@@ -28,12 +28,68 @@ namespace EFGraphAnalyzer.Models
 
 
 
-        public void AnalyseGraph<T>(T item, Boolean modifyAttachedEntities = true, List<Type> typesToCheck = null) where T : class
+        public void AnalyseGraph<T>(T item, Boolean modifyAttachedEntities = true, Boolean checkForRemovedReferences = true, List<Type> typesToCheck = null) where T : class
         {
 
             GraphActionType action;
             var primarySet = Set<T>();
             var existingItem = primarySet.Find(typeof(T).GetProperty("Id").GetValue(item));
+
+            typesToCheck = typesToCheck ??
+                GetType().GetProperties()
+                                         .Where(p => p.PropertyType.IsGenericType &&
+                                             p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
+                                         .Select(p => p.PropertyType.GetGenericArguments().First())
+                                         .ToList();
+            typesToCheck.Remove(typeof(T));
+            var props = item
+                .GetType().GetProperties()
+                                          .Where(x => x.PropertyType.IsGenericType &&
+                                              x.PropertyType.GetGenericTypeDefinition() == typeof(ICollection<>) &&
+                                              typesToCheck.Contains(x.PropertyType.GetGenericArguments().Single()))
+                                          .ToList();
+            if (checkForRemovedReferences)
+            {
+                foreach (var propertyInfo in props)
+                {
+                    var propertyType = propertyInfo.PropertyType.GetGenericArguments().Single();
+                    var existingCollection = propertyInfo.GetValue(existingItem);
+                    var newCollection = propertyInfo.GetValue(item);
+                    //var existingCollection = Convert.ChangeType(propertyInfo.GetValue(existingItem), propertyInfo.PropertyType);
+                    //var newCollection = Convert.ChangeType(propertyInfo.GetValue(item), propertyInfo.PropertyType);
+
+                    var existingIds = new ArrayList();
+                    var newIds = new ArrayList();
+                    var idProperty = propertyType.GetProperty("Id");
+                    foreach (var collectionItem in (IEnumerable)existingCollection)
+                    {
+                        existingIds.Add(idProperty.GetValue(collectionItem));
+                    }
+                    foreach (var collectionItem in (IEnumerable)newCollection)
+                    {
+                        newIds.Add(idProperty.GetValue(collectionItem));
+                    }
+                    var existingIdsArray = existingIds.ToArray();
+                    var newIdsArray = newIds.ToArray();
+
+                    var exceptionMethod = typeof(Enumerable)
+                                                            .GetMethods()
+                                                            .SingleOrDefault(x => x.Name == "Except" &&
+                                                                                  x.GetParameters().Length == 2 &&
+                                                                                  x.GetGenericArguments().Length == 1);
+                    var genericExceptMethod = exceptionMethod.MakeGenericMethod(typeof(object));
+                    
+                    var toListMethod = typeof (Enumerable).GetMethod("ToList");
+                    var genericToListMethod = toListMethod.MakeGenericMethod(typeof (object));
+                    var idsToRemove = genericExceptMethod.Invoke(null, new object[] { existingIdsArray, newIdsArray });
+                    var idsToAdd = genericExceptMethod.Invoke(null, new object[] { newIdsArray, existingIdsArray });
+                    var idsToRemoveList = genericToListMethod.Invoke(null, new object[] {idsToRemove});
+
+                    
+
+
+                }
+            }
 
 
             if (existingItem == null)
@@ -54,19 +110,7 @@ namespace EFGraphAnalyzer.Models
                 action = GraphActionType.Update;
             }
 
-            typesToCheck = typesToCheck ??
-                GetType().GetProperties()
-                                         .Where(p => p.PropertyType.IsGenericType &&
-                                             p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-                                         .Select(p => p.PropertyType.GetGenericArguments().First())
-                                         .ToList();
-            typesToCheck.Remove(typeof(T));
-            var props = item
-                .GetType().GetProperties()
-                                          .Where(x => x.PropertyType.IsGenericType &&
-                                              x.PropertyType.GetGenericTypeDefinition() == typeof(ICollection<>) &&
-                                              typesToCheck.Contains(x.PropertyType.GetGenericArguments().Single()))
-                                          .ToList();
+            
             foreach (var propertyInfo in props)
             {
                 typesToCheck.Remove(propertyInfo.PropertyType.GetGenericArguments().Single());
@@ -82,7 +126,7 @@ namespace EFGraphAnalyzer.Models
                     GetType()
                         .GetMethod("AnalyseGraph")
                         .MakeGenericMethod(typedItem.GetType())
-                        .Invoke(this, new[] { typedItem, modifyAttachedEntities, typesToCheck });
+                        .Invoke(this, new[] { typedItem, modifyAttachedEntities, checkForRemovedReferences, typesToCheck });
                 }
             }
 
