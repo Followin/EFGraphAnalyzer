@@ -18,12 +18,17 @@ namespace EFGraphAnalyzer
 
             var s = new Student
             {
-                Name = "NewStudent",
+                Name = "First",
                 Courses = new[]
                 {
-                    new Course {Id = 1, Name = "FirstCours"}
+                    new Course
+                    {
+                        Id = 1,
+                        Name = "FirstCourse"
+                    }
                 }
             };
+
             db.AnalyseGraph(s);
 
 
