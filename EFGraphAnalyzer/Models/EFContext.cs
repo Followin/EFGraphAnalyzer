@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Entity;
 using System.Linq;
+using EFGraphAnalyzer.Utils.ArrayExtensions;
 
 namespace EFGraphAnalyzer.Models
 {
@@ -30,7 +31,6 @@ namespace EFGraphAnalyzer.Models
 
         public void AnalyseGraph<T>(T item, Boolean modifyAttachedEntities = true, Boolean checkForRemovedReferences = true, List<Type> typesToCheck = null) where T : class
         {
-
             GraphActionType action;
             var primarySet = Set<T>();
             var existingItem = primarySet.Find(typeof(T).GetProperty("Id").GetValue(item));
@@ -48,7 +48,8 @@ namespace EFGraphAnalyzer.Models
                                               x.PropertyType.GetGenericTypeDefinition() == typeof(ICollection<>) &&
                                               typesToCheck.Contains(x.PropertyType.GetGenericArguments().Single()))
                                           .ToList();
-            if (checkForRemovedReferences)
+            
+            if (existingItem != null && checkForRemovedReferences)
             {
                 foreach (var propertyInfo in props)
                 {
@@ -81,18 +82,55 @@ namespace EFGraphAnalyzer.Models
                     var intersectMethod = typeof(Enumerable)
                                                             .GetMethods()
                                                             .SingleOrDefault(x => x.Name == "Intersect" &&
-                                                                               x.GetParameters().Length == 2 &&
-                                                                               x.GetGenericArguments().Length == 1);
+                                                                                  x.GetParameters().Length == 2 &&
+                                                                                  x.GetGenericArguments().Length == 1);
                     
                     
                     var toListMethod = typeof (Enumerable).GetMethod("ToList");
                     var idsToRemove = genericExceptMethod.Invoke(null, new object[] { existingIdsArray, newIdsArray });
-
+                    var idsToAdd = genericExceptMethod.Invoke(null, new object[] { newIdsArray, existingIdsArray });
+                    var containsMethod = typeof(Enumerable)
+                                                           .GetMethods()
+                                                           .SingleOrDefault(x => x.Name == "Contains" &&
+                                                                                 x.GetParameters().Length == 2 &&
+                                                                                 x.GetGenericArguments().Length == 1);
+                    var genericContainsMethod = containsMethod.MakeGenericMethod(typeof(object));
+                    var countMethod = typeof(Enumerable)
+                                                        .GetMethods()
+                                                        .SingleOrDefault(x => x.Name == "Count" &&
+                                                                              x.GetParameters().Length == 1 &&
+                                                                              x.GetGenericArguments().Length == 1);
+                    var genericCountMethod = countMethod.MakeGenericMethod(propertyType);
+                    var elementAtMethod = typeof(Enumerable)
+                                                            .GetMethods()
+                                                            .SingleOrDefault(x => x.Name == "ElementAt" &&
+                                                                                  x.GetParameters().Length == 2 &&
+                                                                                  x.GetGenericArguments().Length == 1);
+                    var genericElementAtMethod = elementAtMethod.MakeGenericMethod(propertyType);
+                    for (Int32 i = 0; i < (int) genericCountMethod.Invoke(null, new[] {existingCollection});)
+                    {
+                        var collectionItem = genericElementAtMethod.Invoke(null, new object[] {(IEnumerable)existingCollection, i});
+                        if (
+                            (bool)
+                                genericContainsMethod.Invoke(null,
+                                    new[] {idsToRemove, idProperty.GetValue(collectionItem)}))
+                        {
+                            var collectionType = typeof (ICollection<>).MakeGenericType(propertyType);
+                            var removeMethod = collectionType.GetMethod("Remove", new[] {propertyType});
+                            removeMethod.Invoke(existingCollection, new[] {collectionItem});
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    
+                    //Entry(existingItem).State = EntityState.Detached;
                     
                 }
             }
-
-
+            
+            
             if (existingItem == null)
             {
                 primarySet.Add(item);
@@ -104,7 +142,9 @@ namespace EFGraphAnalyzer.Models
                     Entry(existingItem).State = EntityState.Detached;
 
                 if (modifyAttachedEntities)
-                    Entry(item).State = EntityState.Modified;
+                {
+                     Entry(existingItem).State = EntityState.Modified;
+                }  
 
                 else primarySet.Attach(item);
 
